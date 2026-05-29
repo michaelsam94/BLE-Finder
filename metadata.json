@@ -1,0 +1,6 @@
+{
+  "name": "BLE Finder",
+  "description": "BLE Finder — Radar Tracker locates lost wearables using raw RSSI signal, hot-cold dials and audio feedback pings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
