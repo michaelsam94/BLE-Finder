@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -6,12 +8,26 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
+if (gradle.startParameter.taskNames.any {
+    it.equals("generatePlayStoreAssets", ignoreCase = true) ||
+      it.contains("Roborazzi", ignoreCase = true)
+  }) {
+  extra["screenshot"] = true
+}
+
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+  if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { load(it) }
+  }
+}
+
 android {
-  namespace = "com.example"
+  namespace = "com.michael.blefinder"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.blefinder.vypwns"
+    applicationId = "com.michael.blefinder"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -22,11 +38,10 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+      storePassword = keystoreProperties.getProperty("storePassword")
+      keyAlias = keystoreProperties.getProperty("keyAlias")
+      keyPassword = keystoreProperties.getProperty("keyPassword")
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -55,7 +70,35 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      all { test ->
+        val screenshotTests = project.hasProperty("screenshot")
+        test.inputs.property("screenshotTestsEnabled", screenshotTests)
+        if (screenshotTests) {
+          test.maxParallelForks = 1
+          test.maxHeapSize = "2048m"
+          test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+        }
+        test.useJUnit {
+          if (screenshotTests) {
+            includeCategories("com.michael.blefinder.playstore.PlayStoreScreenshotTests")
+          } else {
+            excludeCategories("com.michael.blefinder.playstore.PlayStoreScreenshotTests")
+          }
+        }
+      }
+    }
+  }
+}
+
+roborazzi { outputDir.set(file("${rootProject.projectDir}/play-store")) }
+
+tasks.register("generatePlayStoreAssets") {
+  group = "publishing"
+  description = "Generate Play Store screenshots and feature graphic via Roborazzi"
+  dependsOn("recordRoborazziDebug")
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
